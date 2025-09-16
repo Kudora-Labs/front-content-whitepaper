@@ -1,0 +1,15 @@
+{
+  "sections": [
+    "introduction.md",
+    "vision.md",
+    "problems.md",
+    "ecosystem.md",
+    "technology.md",
+    "tokenomics.md",
+    "governance.md",
+    "use-cases.md",
+    "community.md",
+    "success.md",
+    "call-to-action.md"
+  ]
+}

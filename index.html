@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Add cache control headers -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Kudora White Paper</title>
+    <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/geist-sans" />
+    <link rel="stylesheet" href="styles/main.css" />
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <header class="top-header">
+        <a href="#" class="logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <path d="M9 12h6"/>
+                <path d="M12 9v6"/>
+            </svg>
+            <span>Kudora Chain</span>
+        </a>
+        <button class="download-button">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 2v8M5 7l3 3 3-3M3 13h10"/>
+            </svg>
+            Download PDF
+        </button>
+    </header>
+
+    <!-- placeholders: nav and main are loaded from fragments -->
+    <div id="sidebar-placeholder"></div>
+    <div class="content-wrapper">
+        <main id="content-placeholder" class="content" aria-live="polite"></main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const sidebarPlaceholder = document.getElementById('sidebar-placeholder');
+            const contentPlaceholder = document.getElementById('content-placeholder');
+
+            async function loadManifest() {
+                const res = await fetch('sections/manifest.json?' + new Date().getTime(), {
+                    cache: 'no-store'
+                });
+                if (!res.ok) throw new Error('Failed to load manifest');
+                return await res.json();
+            }
+
+            async function loadSection(filename) {
+                const res = await fetch(`sections/${filename}?` + new Date().getTime(), {
+                    cache: 'no-store'
+                });
+                if (!res.ok) throw new Error(`Failed to load section: ${filename}`);
+                return await res.text();
+            }
+
+            async function loadAllSections() {
+                try {
+                    const manifest = await loadManifest();
+                    const sections = await Promise.all(
+                        manifest.sections.map(loadSection)
+                    );
+                    return sections.join('\n\n');
+                } catch (err) {
+                    console.error('Failed to load sections:', err);
+                    return '# Error\nFailed to load content sections.';
+                }
+            }
+
+            async function loadFragment(path, container, isMarkdown = false) {
+                try {
+                    let content;
+                    if (path === 'content.md') {
+                        content = await loadAllSections();
+                    } else {
+                        const res = await fetch(path + '?' + new Date().getTime(), {
+                            cache: 'no-store'
+                        });
+                        if (!res.ok) throw new Error(path + ' load failed: ' + res.status);
+                        content = await res.text();
+                    }
+                    container.innerHTML = isMarkdown ? marked.parse(content) : content;
+                } catch (err) {
+                    console.error('Failed to load fragment:', err);
+                    container.innerHTML = '<div style="padding:1rem;color:#a00">Failed to load ' + path + ': ' + err.message + '</div>';
+                }
+            }
+
+            // First load content as Markdown, then generate navigation
+            await loadFragment('content.md', contentPlaceholder, true);
+            await loadFragment('nav.html', sidebarPlaceholder);
+            
+            // Add section IDs to the rendered Markdown headings
+            contentPlaceholder.querySelectorAll('h1, h2, h3').forEach(heading => {
+                if (!heading.id) {
+                    heading.id = heading.textContent.toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/(^-|-$)/g, '');
+                }
+            });
+
+            // Wrap sections around each h1/h2 until the next h1/h2
+            const wrapSections = () => {
+                const content = contentPlaceholder;
+                content.innerHTML = `<div id="temp-container">${content.innerHTML}</div>`;
+                const container = content.querySelector('#temp-container');
+                const sections = [];
+                
+                // First, find all h1 and h2 elements and create sections
+                const headings = container.querySelectorAll('h1, h2');
+                headings.forEach(heading => {
+                    const section = document.createElement('section');
+                    section.id = heading.id || heading.textContent.toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/(^-|-$)/g, '');
+                    section.className = 'section';
+                    
+                    // Collect all elements until the next h1 or h2
+                    const sectionContent = [];
+                    let currentNode = heading;
+                    while (currentNode.nextElementSibling && 
+                           !currentNode.nextElementSibling.matches('h1, h2')) {
+                        sectionContent.push(currentNode.nextElementSibling);
+                        currentNode = currentNode.nextElementSibling;
+                    }
+                    
+                    // Add content to section in correct order
+                    section.appendChild(heading.cloneNode(true));
+                    sectionContent.forEach(node => section.appendChild(node.cloneNode(true)));
+                    sections.push(section);
+                });
+                
+                // Clear the temporary container
+                content.innerHTML = '';
+                
+                // Add all sections back in the correct order
+                sections.forEach(section => {
+                    content.appendChild(section);
+                });
+            };
+
+            wrapSections();
+            generateNavigation();
+
+            // Generate navigation from content
+            function generateNavigation() {
+                const sidebarNav = document.querySelector('.sidebar-nav');
+                if (!sidebarNav) return;
+                
+                sidebarNav.innerHTML = '';
+                const sections = contentPlaceholder.querySelectorAll('section');
+                
+                sections.forEach(section => {
+                    if (!section.id) return;
+                    
+                    const mainItem = document.createElement('li');
+                    const mainLink = document.createElement('a');
+                    
+                    // Check if this is an h1 or h2 section
+                    const isH1Section = section.querySelector('h1');
+                    const isH2Section = section.querySelector('h2');
+                    
+                    const sectionTitle = 
+                        isH1Section?.textContent ||
+                        isH2Section?.textContent ||
+                        section.id;
+                    
+                    mainLink.href = `#${section.id}`;
+                    mainLink.textContent = sectionTitle;
+                    
+                    // Mark h2 sections with data attribute
+                    if (isH2Section) {
+                        mainLink.setAttribute('data-level', '2');
+                        // Or alternatively use a class:
+                        // mainLink.classList.add('subsection');
+                    }
+                    
+                    mainItem.appendChild(mainLink);
+
+                    // Find subsections (h3)
+                    const subsections = section.querySelectorAll('h3[id]');
+                    if (subsections.length > 0) {
+                        const subList = document.createElement('ul');
+                        subsections.forEach(subsection => {
+                            const subItem = document.createElement('li');
+                            const subLink = document.createElement('a');
+                            subLink.href = `#${subsection.id}`;
+                            subLink.textContent = subsection.textContent;
+                            subItem.appendChild(subLink);
+                            subList.appendChild(subItem);
+                        });
+                        mainItem.appendChild(subList);
+                    }
+
+                    sidebarNav.appendChild(mainItem);
+                });
+            }
+
+            // Generate the navigation after content is loaded
+            generateNavigation();
+
+            // Initialize progress bar and active link highlighting
+            const links = document.querySelectorAll('.sidebar-nav a');
+            const progressBar = document.querySelector('.progress-bar');
+            
+            function updateProgress() {
+                const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+                const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+                const scrolled = height > 0 ? (winScroll / height) * 100 : 0;
+                if (progressBar) progressBar.style.width = scrolled + '%';
+            }
+
+            // Update active link and progress based on scroll position
+            function onScroll() {
+                let current = '';
+                updateProgress();
+
+                // Find the current section
+                document.querySelectorAll('section').forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    const sectionHeight = section.clientHeight;
+                    if (pageYOffset >= sectionTop - 60) {
+                        current = '#' + section.getAttribute('id');
+                    }
+                });
+
+                // Update active states
+                links.forEach(link => {
+                    link.classList.remove('active');
+                    // Remove active class from parent li
+                    const parentLi = link.closest('li');
+                    if (parentLi) {
+                        parentLi.classList.remove('active');
+                    }
+                    
+                    if (link.getAttribute('href') === current) {
+                        link.classList.add('active');
+                        // Add active class to parent li to show submenu
+                        const parentLi = link.closest('li');
+                        if (parentLi) {
+                            parentLi.classList.add('active');
+                        }
+                    }
+                });
+            }
+
+            window.addEventListener('scroll', onScroll);
+            updateProgress();
+
+            // Smooth scroll to sections (delegated)
+            links.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const href = link.getAttribute('href');
+                    const targetSection = document.querySelector(href);
+                    if (targetSection) {
+                        targetSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
