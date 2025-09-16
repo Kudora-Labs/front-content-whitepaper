@@ -42,7 +42,7 @@
             const contentPlaceholder = document.getElementById('content-placeholder');
 
             async function loadManifest() {
-                const res = await fetch('sections/manifest.json?' + new Date().getTime(), {
+                const res = await fetch('https://raw.githubusercontent.com/Kudora-Labs/content-core-vision/main/sections/manifest.json', {
                     cache: 'no-store'
                 });
                 if (!res.ok) throw new Error('Failed to load manifest');
@@ -50,7 +50,7 @@
             }
 
             async function loadSection(filename) {
-                const res = await fetch(`sections/${filename}?` + new Date().getTime(), {
+                const res = await fetch(`https://raw.githubusercontent.com/Kudora-Labs/content-core-vision/main/sections/${filename}`, {
                     cache: 'no-store'
                 });
                 if (!res.ok) throw new Error(`Failed to load section: ${filename}`);
