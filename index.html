@@ -42,7 +42,7 @@
             const contentPlaceholder = document.getElementById('content-placeholder');
 
             async function loadManifest() {
-                const res = await fetch('https://raw.githubusercontent.com/Kudora-Labs/content-core-vision/main/sections/manifest.json', {
+                const res = await fetch('https://raw.githubusercontent.com/Kudora-Labs/content-core-vision/main/whitepaper.json', {
                     cache: 'no-store'
                 });
                 if (!res.ok) throw new Error('Failed to load manifest');
